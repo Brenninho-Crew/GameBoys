@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>GameBoys Web Emulator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <style>
+        body {
+            background: #111;
+            color: white;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+        }
+
+        h1 {
+            margin-top: 20px;
+        }
+
+        #screen {
+            width: 480px;
+            height: 432px;
+            image-rendering: pixelated;
+            border: 4px solid #444;
+            margin-top: 20px;
+            background: black;
+        }
+
+        .controls {
+            margin-top: 20px;
+        }
+
+        input {
+            margin-top: 10px;
+        }
+
+        footer {
+            margin-top: 40px;
+            font-size: 14px;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+
+<h1>🎮 GameBoys Web Emulator</h1>
+
+<canvas id="screen" width="160" height="144"></canvas>
+
+<div class="controls">
+    <input type="file" id="romInput" accept=".gb">
+    <br>
+    <button onclick="startEmulator()">Start Emulator</button>
+</div>
+
+<footer>
+    GameBoys - C++ WebAssembly Build
+</footer>
+
+<script>
+    let romData = null;
+    let moduleReady = false;
+
+    const canvas = document.getElementById("screen");
+    const ctx = canvas.getContext("2d");
+
+    // Setup Emscripten Module
+    var Module = {
+        canvas: canvas,
+        onRuntimeInitialized: function() {
+            console.log("WASM Ready");
+            moduleReady = true;
+        }
+    };
+
+    document.getElementById("romInput").addEventListener("change", function(e) {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+
+        reader.onload = function() {
+            romData = new Uint8Array(reader.result);
+            console.log("ROM Loaded:", romData.length, "bytes");
+        };
+
+        reader.readAsArrayBuffer(file);
+    });
+
+    function startEmulator() {
+        if (!moduleReady) {
+            alert("WASM not ready yet!");
+            return;
+        }
+
+        if (!romData) {
+            alert("Load a ROM first!");
+            return;
+        }
+
+        // Example: send ROM to C++ side
+        const romPtr = Module._malloc(romData.length);
+        Module.HEAPU8.set(romData, romPtr);
+
+        Module._loadROM(romPtr, romData.length);
+        Module._start();
+
+        console.log("Emulator started!");
+    }
+
+    // Keyboard input mapping
+    document.addEventListener("keydown", function(e) {
+        if (!moduleReady) return;
+
+        switch (e.key) {
+            case "ArrowUp": Module._pressButton(0); break;
+            case "ArrowDown": Module._pressButton(1); break;
+            case "ArrowLeft": Module._pressButton(2); break;
+            case "ArrowRight": Module._pressButton(3); break;
+            case "z": Module._pressButton(4); break; // A
+            case "x": Module._pressButton(5); break; // B
+            case "Enter": Module._pressButton(6); break; // Start
+            case "Shift": Module._pressButton(7); break; // Select
+        }
+    });
+
+    document.addEventListener("keyup", function(e) {
+        if (!moduleReady) return;
+
+        switch (e.key) {
+            case "ArrowUp": Module._releaseButton(0); break;
+            case "ArrowDown": Module._releaseButton(1); break;
+            case "ArrowLeft": Module._releaseButton(2); break;
+            case "ArrowRight": Module._releaseButton(3); break;
+            case "z": Module._releaseButton(4); break;
+            case "x": Module._releaseButton(5); break;
+            case "Enter": Module._releaseButton(6); break;
+            case "Shift": Module._releaseButton(7); break;
+        }
+    });
+</script>
+
+<!-- Emscripten generated file -->
+<script src="gameboys.js"></script>
+
+</body>
+</html>
