@@ -1,146 +1,253 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>GameBoys Web Emulator</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GameBoys Emulator</title>
 
-    <style>
-        body {
-            background: #111;
-            color: white;
-            font-family: Arial, sans-serif;
-            text-align: center;
-            margin: 0;
-            padding: 0;
-        }
+<style>
+body {
+    margin: 0;
+    background: linear-gradient(135deg, #1a1a1a, #0f0f0f);
+    font-family: Arial, sans-serif;
+    color: white;
+    text-align: center;
+}
 
-        h1 {
-            margin-top: 20px;
-        }
+h1 {
+    margin-top: 20px;
+    font-size: 28px;
+    letter-spacing: 2px;
+}
 
-        #screen {
-            width: 480px;
-            height: 432px;
-            image-rendering: pixelated;
-            border: 4px solid #444;
-            margin-top: 20px;
-            background: black;
-        }
+.console {
+    margin: 30px auto;
+    padding: 25px;
+    width: fit-content;
+    background: #2d2d2d;
+    border-radius: 20px;
+    box-shadow: 0 0 40px rgba(0,0,0,0.6);
+}
 
-        .controls {
-            margin-top: 20px;
-        }
+#screen {
+    width: 480px;
+    height: 432px;
+    background: black;
+    border-radius: 10px;
+    image-rendering: pixelated;
+    border: 5px solid #111;
+}
 
-        input {
-            margin-top: 10px;
-        }
+.controls {
+    margin-top: 20px;
+}
 
-        footer {
-            margin-top: 40px;
-            font-size: 14px;
-            color: #888;
-        }
-    </style>
+button {
+    background: #444;
+    border: none;
+    padding: 12px 18px;
+    margin: 6px;
+    border-radius: 10px;
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+button:hover {
+    background: #666;
+}
+
+input[type="file"] {
+    margin-top: 15px;
+}
+
+.touch-controls {
+    margin-top: 25px;
+}
+
+.dpad, .ab-buttons {
+    display: inline-block;
+    margin: 10px;
+}
+
+.dpad button {
+    width: 60px;
+    height: 60px;
+}
+
+.ab-buttons button {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    font-weight: bold;
+}
+
+.status {
+    margin-top: 15px;
+    font-size: 14px;
+    color: #aaa;
+}
+
+footer {
+    margin-top: 30px;
+    font-size: 13px;
+    color: #777;
+}
+</style>
 </head>
 <body>
 
-<h1>🎮 GameBoys Web Emulator</h1>
+<h1>🎮 GameBoys Emulator</h1>
+
+<div class="console">
 
 <canvas id="screen" width="160" height="144"></canvas>
 
 <div class="controls">
     <input type="file" id="romInput" accept=".gb">
     <br>
-    <button onclick="startEmulator()">Start Emulator</button>
+    <button onclick="startEmulator()">Start</button>
+    <button onclick="resetEmulator()">Reset</button>
+</div>
+
+<div class="touch-controls">
+
+    <div class="dpad">
+        <div>
+            <button onmousedown="press(0)" onmouseup="release(0)">↑</button>
+        </div>
+        <div>
+            <button onmousedown="press(2)" onmouseup="release(2)">←</button>
+            <button onmousedown="press(1)" onmouseup="release(1)">↓</button>
+            <button onmousedown="press(3)" onmouseup="release(3)">→</button>
+        </div>
+    </div>
+
+    <div class="ab-buttons">
+        <button onmousedown="press(4)" onmouseup="release(4)">A</button>
+        <button onmousedown="press(5)" onmouseup="release(5)">B</button>
+    </div>
+
+</div>
+
+<div class="status" id="status">
+    Status: Waiting for WASM...
+</div>
+
 </div>
 
 <footer>
-    GameBoys - C++ WebAssembly Build
+GameBoys • C++ + WebAssembly
 </footer>
 
 <script>
-    let romData = null;
-    let moduleReady = false;
 
-    const canvas = document.getElementById("screen");
-    const ctx = canvas.getContext("2d");
+let romData = null;
+let moduleReady = false;
 
-    // Setup Emscripten Module
-    var Module = {
-        canvas: canvas,
-        onRuntimeInitialized: function() {
-            console.log("WASM Ready");
-            moduleReady = true;
-        }
+const statusText = document.getElementById("status");
+
+// =============================
+// Module Setup
+// =============================
+
+var Module = {
+    canvas: document.getElementById("screen"),
+    onRuntimeInitialized: function() {
+        moduleReady = true;
+        statusText.innerText = "Status: WASM Ready";
+    }
+};
+
+// =============================
+// ROM Upload
+// =============================
+
+document.getElementById("romInput").addEventListener("change", function(e) {
+    const file = e.target.files[0];
+    const reader = new FileReader();
+
+    reader.onload = function() {
+        romData = new Uint8Array(reader.result);
+        statusText.innerText = "Status: ROM Loaded (" + romData.length + " bytes)";
     };
 
-    document.getElementById("romInput").addEventListener("change", function(e) {
-        const file = e.target.files[0];
-        const reader = new FileReader();
+    reader.readAsArrayBuffer(file);
+});
 
-        reader.onload = function() {
-            romData = new Uint8Array(reader.result);
-            console.log("ROM Loaded:", romData.length, "bytes");
-        };
+// =============================
+// Emulator Controls
+// =============================
 
-        reader.readAsArrayBuffer(file);
-    });
-
-    function startEmulator() {
-        if (!moduleReady) {
-            alert("WASM not ready yet!");
-            return;
-        }
-
-        if (!romData) {
-            alert("Load a ROM first!");
-            return;
-        }
-
-        // Example: send ROM to C++ side
-        const romPtr = Module._malloc(romData.length);
-        Module.HEAPU8.set(romData, romPtr);
-
-        Module._loadROM(romPtr, romData.length);
-        Module._start();
-
-        console.log("Emulator started!");
+function startEmulator() {
+    if (!moduleReady) {
+        alert("WASM not ready!");
+        return;
     }
 
-    // Keyboard input mapping
-    document.addEventListener("keydown", function(e) {
-        if (!moduleReady) return;
+    if (!romData) {
+        alert("Load a ROM first!");
+        return;
+    }
 
-        switch (e.key) {
-            case "ArrowUp": Module._pressButton(0); break;
-            case "ArrowDown": Module._pressButton(1); break;
-            case "ArrowLeft": Module._pressButton(2); break;
-            case "ArrowRight": Module._pressButton(3); break;
-            case "z": Module._pressButton(4); break; // A
-            case "x": Module._pressButton(5); break; // B
-            case "Enter": Module._pressButton(6); break; // Start
-            case "Shift": Module._pressButton(7); break; // Select
-        }
-    });
+    const ptr = Module._malloc(romData.length);
+    Module.HEAPU8.set(romData, ptr);
 
-    document.addEventListener("keyup", function(e) {
-        if (!moduleReady) return;
+    Module._loadROM(ptr, romData.length);
+    Module._start();
 
-        switch (e.key) {
-            case "ArrowUp": Module._releaseButton(0); break;
-            case "ArrowDown": Module._releaseButton(1); break;
-            case "ArrowLeft": Module._releaseButton(2); break;
-            case "ArrowRight": Module._releaseButton(3); break;
-            case "z": Module._releaseButton(4); break;
-            case "x": Module._releaseButton(5); break;
-            case "Enter": Module._releaseButton(6); break;
-            case "Shift": Module._releaseButton(7); break;
-        }
-    });
+    statusText.innerText = "Status: Running";
+}
+
+function resetEmulator() {
+    location.reload();
+}
+
+function press(id) {
+    if (moduleReady) Module._pressButton(id);
+}
+
+function release(id) {
+    if (moduleReady) Module._releaseButton(id);
+}
+
+// =============================
+// Keyboard Support
+// =============================
+
+document.addEventListener("keydown", e => {
+    const map = {
+        ArrowUp: 0,
+        ArrowDown: 1,
+        ArrowLeft: 2,
+        ArrowRight: 3,
+        z: 4,
+        x: 5,
+        Enter: 6,
+        Shift: 7
+    };
+
+    if (map[e.key] !== undefined) press(map[e.key]);
+});
+
+document.addEventListener("keyup", e => {
+    const map = {
+        ArrowUp: 0,
+        ArrowDown: 1,
+        ArrowLeft: 2,
+        ArrowRight: 3,
+        z: 4,
+        x: 5,
+        Enter: 6,
+        Shift: 7
+    };
+
+    if (map[e.key] !== undefined) release(map[e.key]);
+});
+
 </script>
 
-<!-- Emscripten generated file -->
 <script src="gameboys.js"></script>
 
 </body>
