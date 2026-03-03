@@ -8,7 +8,7 @@
 <style>
 body {
     margin: 0;
-    background: linear-gradient(135deg, #1a1a1a, #0f0f0f);
+    background: linear-gradient(135deg,#0f0f0f,#1c1c1c);
     font-family: Arial, sans-serif;
     color: white;
     text-align: center;
@@ -16,7 +16,6 @@ body {
 
 h1 {
     margin-top: 20px;
-    font-size: 28px;
     letter-spacing: 2px;
 }
 
@@ -24,7 +23,7 @@ h1 {
     margin: 30px auto;
     padding: 25px;
     width: fit-content;
-    background: #2d2d2d;
+    background: #2b2b2b;
     border-radius: 20px;
     box-shadow: 0 0 40px rgba(0,0,0,0.6);
 }
@@ -60,6 +59,19 @@ button:hover {
 
 input[type="file"] {
     margin-top: 15px;
+}
+
+.drop-area {
+    margin-top: 15px;
+    padding: 20px;
+    border: 2px dashed #666;
+    border-radius: 10px;
+    color: #aaa;
+}
+
+.drop-area.dragover {
+    border-color: #00ff88;
+    color: #00ff88;
 }
 
 .touch-controls {
@@ -106,13 +118,15 @@ footer {
 
 <div class="controls">
     <input type="file" id="romInput" accept=".gb">
+    <div class="drop-area" id="dropArea">
+        Drag & Drop your .gb ROM here
+    </div>
     <br>
     <button onclick="startEmulator()">Start</button>
     <button onclick="resetEmulator()">Reset</button>
 </div>
 
 <div class="touch-controls">
-
     <div class="dpad">
         <div>
             <button onmousedown="press(0)" onmouseup="release(0)">↑</button>
@@ -128,7 +142,6 @@ footer {
         <button onmousedown="press(4)" onmouseup="release(4)">A</button>
         <button onmousedown="press(5)" onmouseup="release(5)">B</button>
     </div>
-
 </div>
 
 <div class="status" id="status">
@@ -147,9 +160,10 @@ let romData = null;
 let moduleReady = false;
 
 const statusText = document.getElementById("status");
+const dropArea = document.getElementById("dropArea");
 
 // =============================
-// Module Setup
+// WASM Module Setup
 // =============================
 
 var Module = {
@@ -161,23 +175,60 @@ var Module = {
 };
 
 // =============================
-// ROM Upload
+// ROM Loading Logic
 // =============================
 
-document.getElementById("romInput").addEventListener("change", function(e) {
-    const file = e.target.files[0];
-    const reader = new FileReader();
+function validateROM(data) {
+    // Game Boy header check (Nintendo logo location)
+    if (data.length < 0x150) return false;
+    return true;
+}
 
+function handleROM(file) {
+    if (!file.name.endsWith(".gb")) {
+        alert("Only .gb files are supported!");
+        return;
+    }
+
+    const reader = new FileReader();
     reader.onload = function() {
-        romData = new Uint8Array(reader.result);
+        const data = new Uint8Array(reader.result);
+
+        if (!validateROM(data)) {
+            alert("Invalid Game Boy ROM!");
+            return;
+        }
+
+        romData = data;
         statusText.innerText = "Status: ROM Loaded (" + romData.length + " bytes)";
     };
 
     reader.readAsArrayBuffer(file);
+}
+
+// Input file
+document.getElementById("romInput").addEventListener("change", e => {
+    handleROM(e.target.files[0]);
+});
+
+// Drag & Drop
+dropArea.addEventListener("dragover", e => {
+    e.preventDefault();
+    dropArea.classList.add("dragover");
+});
+
+dropArea.addEventListener("dragleave", () => {
+    dropArea.classList.remove("dragover");
+});
+
+dropArea.addEventListener("drop", e => {
+    e.preventDefault();
+    dropArea.classList.remove("dragover");
+    handleROM(e.dataTransfer.files[0]);
 });
 
 // =============================
-// Emulator Controls
+// Emulator Control
 // =============================
 
 function startEmulator() {
@@ -227,7 +278,6 @@ document.addEventListener("keydown", e => {
         Enter: 6,
         Shift: 7
     };
-
     if (map[e.key] !== undefined) press(map[e.key]);
 });
 
@@ -242,7 +292,6 @@ document.addEventListener("keyup", e => {
         Enter: 6,
         Shift: 7
     };
-
     if (map[e.key] !== undefined) release(map[e.key]);
 });
 
